@@ -1,0 +1,626 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dune Dash — Auto Solver</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#1c1730; --ink2:#241d3d; --ink3:#2f2650;
+    --gold:#e8a33d; --gold2:#f4c065;
+    --sand:#f0e3c8; --cream:#faf4e6;
+    --cactus:#4f7942; --danger:#e35b5b;
+    --line:#ffffff17;
+    --radius-lg:22px; --radius-md:14px; --radius-sm:10px;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; min-height:100vh; display:flex; align-items:center; justify-content:center;
+    font-family:'Inter',system-ui,sans-serif;
+    background:
+      radial-gradient(ellipse 900px 500px at 20% -10%, #3a2c5c 0%, transparent 60%),
+      radial-gradient(ellipse 900px 600px at 100% 110%, #4a2f4f 0%, transparent 55%),
+      var(--ink);
+    color:var(--cream); padding:26px;
+  }
+  .app{width:min(1080px,100%); background:linear-gradient(180deg,#221b3aee,#1a1530ee);
+       border:1px solid var(--line); border-radius:26px;
+       box-shadow:0 30px 90px #0009, inset 0 1px 0 #ffffff0f; overflow:hidden}
+
+  header{padding:24px 28px 20px; display:flex; justify-content:space-between; gap:20px; align-items:flex-end;
+         border-bottom:1px solid var(--line)}
+  .title-row{display:flex; align-items:center; gap:12px}
+  .glyph{font-size:34px; filter:drop-shadow(0 2px 6px #00000060)}
+  h1{margin:0;font-family:'Fraunces',serif; font-weight:600; font-size:28px; letter-spacing:.2px}
+  .sub{color:#b9aed6;font-size:13px;margin-top:5px}
+  .status{padding:9px 16px;border-radius:999px;font-size:12px;font-weight:600;
+           display:flex; align-items:center; gap:8px; white-space:nowrap;
+           background:#15112669; border:1px solid var(--line)}
+  .status .dot{width:8px;height:8px;border-radius:50%;background:var(--gold);
+               box-shadow:0 0 0 0 rgba(232,163,61,.6); animation:pulse 1.8s infinite}
+  @keyframes pulse{
+    0%{box-shadow:0 0 0 0 rgba(232,163,61,.55)}
+    70%{box-shadow:0 0 0 9px rgba(232,163,61,0)}
+    100%{box-shadow:0 0 0 0 rgba(232,163,61,0)}
+  }
+
+  .game-wrap{padding:22px 28px 28px}
+  .canvas-frame{border-radius:var(--radius-lg); overflow:hidden; border:1px solid var(--line);
+                box-shadow:0 18px 50px #00000055; position:relative}
+  canvas{width:100%;height:auto;display:block}
+
+  .controls{display:flex;flex-wrap:wrap;gap:10px;margin-top:18px;align-items:center}
+  button{
+    border:1px solid var(--line);background:var(--ink3);color:var(--cream);padding:11px 18px;
+    border-radius:999px;cursor:pointer;font-weight:600;font-size:13.5px;font-family:inherit;
+    transition:transform .12s ease, background .15s ease;
+  }
+  button:hover{background:#3a2f63; transform:translateY(-1px)}
+  button:active{transform:translateY(0)}
+  button.primary{background:linear-gradient(180deg,var(--gold2),var(--gold)); color:#241a08; border:none;
+                  box-shadow:0 6px 18px #e8a33d3d}
+  button.primary:hover{filter:brightness(1.05)}
+  .toggle{
+    display:flex;align-items:center;gap:9px; border:1px solid var(--line); background:#15112669;
+    padding:9px 16px 9px 14px; border-radius:999px; cursor:pointer; font-size:13.5px; font-weight:500;
+    user-select:none;
+  }
+  .toggle input{accent-color:var(--gold); width:15px; height:15px; cursor:pointer}
+  .grow{flex:1}
+  .speedbox{display:flex;align-items:center;gap:10px; font-size:13px; color:#c8bde3; padding:0 4px}
+  input[type=range]{width:150px; accent-color:var(--gold)}
+
+  .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:18px}
+  .stat{background:linear-gradient(180deg,#1c1732,#171029); border:1px solid var(--line);
+        border-radius:var(--radius-md); padding:14px 16px; position:relative; overflow:hidden}
+  .stat::after{content:"";position:absolute;top:-30%;right:-20%;width:90px;height:90px;
+    background:radial-gradient(circle, #e8a33d22, transparent 70%);}
+  .label{font-size:11.5px; color:#9c8fc0; font-weight:500}
+  .value{font-family:'Fraunces',serif; font-size:24px; font-weight:600; margin-top:3px; letter-spacing:.3px}
+  .value.solver{font-size:16px; display:flex; align-items:center; gap:8px}
+  .solver-dot{width:8px;height:8px;border-radius:50%;background:#5c5480; flex:none}
+  .solver-dot.watch{background:#8b7fc2}
+  .solver-dot.jump{background:var(--gold); box-shadow:0 0 8px #e8a33d90}
+  .solver-dot.duck{background:#6fbf9c; box-shadow:0 0 8px #6fbf9c90}
+  .solver-dot.off{background:#4a4266}
+
+  .hint{margin-top:14px; font-size:12px; color:#8577a3}
+  .hint kbd{background:#15112669; border:1px solid var(--line); border-radius:5px; padding:1px 6px; font-family:inherit}
+
+  @media(max-width:720px){
+    .stats{grid-template-columns:repeat(2,1fr)}
+    header{flex-direction:column; align-items:flex-start}
+  }
+</style>
+</head>
+<body>
+<div class="app">
+<header>
+  <div>
+    <div class="title-row"><span class="glyph">🏃</span><h1>Dune Dash</h1></div>
+    <div class="sub">A stickman outruns a full day/night cycle of desert wildlife, dodged by a solver that reads speed, not just distance.</div>
+  </div>
+  <div class="status"><span class="dot" id="statusDot"></span><span id="status">Ready</span></div>
+</header>
+
+<div class="game-wrap">
+  <div class="canvas-frame"><canvas id="game" width="1000" height="320"></canvas></div>
+
+  <div class="controls">
+    <button class="primary" id="start">Start run</button>
+    <button id="reset">Reset</button>
+    <button id="jump">Jump</button>
+    <button id="duck">Duck</button>
+    <label class="toggle"><input type="checkbox" id="auto" checked> Auto solver</label>
+    <label class="toggle"><input type="checkbox" id="debug"> Debug vision</label>
+    <div class="grow"></div>
+    <div class="speedbox">Starting speed <input id="speedRange" type="range" min="4" max="14" step=".5" value="6"><span id="speedVal">6.0</span></div>
+  </div>
+
+  <div class="stats">
+    <div class="stat"><div class="label">Score</div><div class="value" id="score">00000</div></div>
+    <div class="stat"><div class="label">Best run</div><div class="value" id="high">00000</div></div>
+    <div class="stat"><div class="label">Speed</div><div class="value" id="speed">6.0</div></div>
+    <div class="stat"><div class="label">Solver</div><div class="value solver"><span class="solver-dot off" id="solverDot"></span><span id="solverText">Off</span></div></div>
+  </div>
+
+  <div class="hint">Press <kbd>Space</kbd> or <kbd>↑</kbd> to jump, hold <kbd>↓</kbd> to duck, <kbd>Enter</kbd> to start. Turn off the auto solver to play it yourself.</div>
+</div>
+</div>
+
+<script>
+const c=document.getElementById("game"),ctx=c.getContext("2d");
+const W=c.width,H=c.height,ground=245;
+let dino,obstacles,particles,score=0,high=Number(localStorage.dinoHighV2||0);
+let running=false,gameOver=false,last=0,spawn=0,baseSpeed=6,debug=false;
+let shakeTime=0, milestoneShown=0, actionState="watch";
+
+// ---------- world / sky ----------
+const CYCLE=2200; // score units per full day
+const stars=Array.from({length:46},()=>({x:Math.random(),y:Math.random()*0.62,r:Math.random()*1.4+.4,tw:Math.random()*6}));
+function lerp(a,b,t){return a+(b-a)*t}
+function lerpColor(c1,c2,t){
+  return [lerp(c1[0],c2[0],t),lerp(c1[1],c2[1],t),lerp(c1[2],c2[2],t)];
+}
+function rgb(a){return `rgb(${a[0]|0},${a[1]|0},${a[2]|0})`}
+// keyframes: dawn, day, dusk, night
+const SKY=[
+  {top:[38,34,70], mid:[95,70,110], hor:[233,150,92], sun:[248,196,110], stars:0.05},
+  {top:[58,110,168], mid:[125,178,205], hor:[214,232,222], sun:[255,221,140], stars:0},
+  {top:[42,30,72], mid:[110,58,92], hor:[224,110,72], sun:[255,150,100], stars:0.35},
+  {top:[10,13,38], mid:[17,22,55], hor:[33,27,66], sun:[226,230,245], stars:1},
+];
+function skyAt(t){
+  const n=SKY.length, f=t*n, i=Math.floor(f)%n, j=(i+1)%n, lt=f-Math.floor(f);
+  const a=SKY[i], b=SKY[j];
+  return {
+    top:lerpColor(a.top,b.top,lt), mid:lerpColor(a.mid,b.mid,lt), hor:lerpColor(a.hor,b.hor,lt),
+    sun:lerpColor(a.sun,b.sun,lt), stars:lerp(a.stars,b.stars,lt)
+  };
+}
+
+function reset(){
+  dino={x:96,y:ground-48,w:42,h:48,vy:0,jumping:false,duck:false,legPhase:0};
+  obstacles=[]; particles=[]; score=0; spawn=0; gameOver=false; running=false;
+  shakeTime=0; milestoneShown=0; actionState="watch";
+  updateUI(); draw();
+}
+function start(){
+  if(gameOver) reset();
+  running=true; gameOver=false;
+  setStatus("Running");
+}
+function setStatus(t){document.getElementById("status").textContent=t;}
+function jump(){
+  if(!running||gameOver||dino.jumping)return;
+  dino.vy=-13.5;dino.jumping=true;dino.duck=false;
+  spawnDust(dino.x+10,ground,8);
+}
+function setDuck(v){ if(running&&!gameOver&&!dino.jumping) dino.duck=v; }
+function hit(a,b){return a.x<b.x+b.w&&a.x+a.w>b.x&&a.y<b.y+b.h&&a.y+a.h>b.y;}
+
+// ---------- obstacle variety ----------
+// Each obstacle carries a "solve" field (jump/duck) so the solver never
+// needs to special-case individual species.
+function pickKind(isNight){
+  const day  =[["cactus",38],["bird",18],["vulture",14],["snake",14],["scorpion",6],["bat",2],["owl",1]];
+  const night=[["cactus",26],["bat",20],["owl",15],["scorpion",15],["snake",10],["bird",6],["vulture",1]];
+  const pool=isNight?night:day;
+  const total=pool.reduce((s,p)=>s+p[1],0);
+  let r=Math.random()*total;
+  for(const [k,w] of pool){ if(r<w) return k; r-=w; }
+  return pool[0][0];
+}
+function spawnCactusGroup(){
+  const n=Math.random()<0.24?(Math.random()<0.4?3:2):1;
+  let x=W+20;
+  for(let i=0;i<n;i++){
+    const height=18+Math.random()*54;          // continuous random plant height
+    const width=13+height*0.22;
+    obstacles.push({type:"cactus",x,y:ground-height,w:width,h:height,solve:"jump",arm:height>34});
+    x+=width+16+Math.random()*30;               // random gap between plants
+  }
+}
+function spawnObstacle(){
+  const t=((score%CYCLE)/CYCLE+1)%1;
+  const isNight=skyAt(t).stars>0.5;
+  const kind=pickKind(isNight);
+  if(kind==="cactus"){spawnCactusGroup();return;}
+  const specs={
+    bird:   {y:ground-66, w:46,h:28,solve:"jump"},
+    bat:    {y:ground-58, w:38,h:22,solve:"jump"},
+    vulture:{y:ground-118,w:60,h:34,solve:"duck"},
+    owl:    {y:ground-112,w:52,h:32,solve:"duck"},
+    snake:  {y:ground-15, w:54,h:15,solve:"jump"},
+    scorpion:{y:ground-20,w:30,h:20,solve:"jump"},
+  }[kind];
+  obstacles.push({type:kind,x:W+25,y:specs.y,w:specs.w,h:specs.h,solve:specs.solve,phase:Math.random()*6});
+}
+
+// ---------- predictive auto solver ----------
+// Uses time-to-arrival (distance / current speed) rather than raw distance,
+// so behavior stays consistent as the game accelerates.
+function autoSolver(speed){
+  if(!document.getElementById("auto").checked){actionState="off";return;}
+
+  const danger=obstacles.filter(o=>o.x+o.w>dino.x-6).sort((a,b)=>a.x-b.x)[0];
+  if(!danger){dino.duck=false;actionState="watch";return;}
+
+  const gap=danger.x-(dino.x+dino.w);
+  const framesToArrive=gap/speed;         // how many frames until obstacle reaches dino
+  const jumpLead=15;                       // frames of jump-arc lead time needed
+  const clearFrames=(danger.x+danger.w-(dino.x))/speed; // frames until obstacle fully passes
+
+  if(danger.solve==="duck"){
+    if(framesToArrive<jumpLead-6 && clearFrames>-4 && !dino.jumping){dino.duck=true;actionState="duck";}
+    else if(clearFrames<-2){dino.duck=false;actionState="watch";}
+    else if(actionState!=="duck"){actionState="watch";}
+  }else{
+    dino.duck=false;
+    if(framesToArrive<jumpLead && framesToArrive>-6 && !dino.jumping){jump();actionState="jump";}
+    else if(!dino.jumping){actionState="watch";}
+  }
+  if(dino.jumping) actionState="jump";
+}
+
+// ---------- particles ----------
+function spawnDust(x,y,n){
+  for(let i=0;i<n;i++){
+    particles.push({x,y,vx:(Math.random()-0.5)*2.4,vy:-Math.random()*1.6,life:26+Math.random()*10,maxLife:36,
+      size:2+Math.random()*2, color:"224,209,180"});
+  }
+}
+function spawnBurst(x,y){
+  for(let i=0;i<26;i++){
+    const ang=Math.random()*Math.PI*2, spd=1.5+Math.random()*4;
+    particles.push({x,y,vx:Math.cos(ang)*spd,vy:Math.sin(ang)*spd-1,life:40+Math.random()*20,maxLife:60,
+      size:2+Math.random()*3, color:Math.random()<0.5?"232,163,61":"250,244,230"});
+  }
+}
+function updateParticles(){
+  for(const p of particles){p.x+=p.vx;p.y+=p.vy;p.vy+=0.12;p.life--;}
+  particles=particles.filter(p=>p.life>0);
+}
+
+function update(dt){
+  updateParticles();
+  if(shakeTime>0) shakeTime-=dt;
+  if(!running||gameOver)return;
+
+  const speed=baseSpeed+Math.min(score/450,6);
+  const targetH=dino.duck&&!dino.jumping?30:48;
+  dino.h=targetH;
+
+  dino.vy+=0.65; dino.y+=dino.vy;
+  if(dino.y>=ground-dino.h){
+    if(dino.jumping) spawnDust(dino.x+10,ground,5);
+    dino.y=ground-dino.h;dino.vy=0;dino.jumping=false;
+  }
+  if(!dino.jumping) dino.legPhase+=dt*0.02*(speed/6);
+
+  spawn-=dt;
+  if(spawn<=0){spawnObstacle();spawn=520+Math.random()*760-Math.min(score/12,200);spawn=Math.max(spawn,300);}
+
+  const flapRate={bird:0.02,bat:0.026,vulture:0.009,owl:0.011,snake:0.006,scorpion:0.01};
+  for(const o of obstacles){o.x-=speed; if(flapRate[o.type]!==undefined) o.phase+=dt*flapRate[o.type];}
+  obstacles=obstacles.filter(o=>o.x+o.w>-30);
+
+  autoSolver(speed);
+
+  const hb={x:dino.x+7,y:dino.y+5,w:dino.w-13,h:dino.h-8};
+  for(const o of obstacles){
+    const box={x:o.x+3,y:o.y+3,w:o.w-6,h:o.h-6};
+    if(hit(hb,box)){
+      gameOver=true;running=false;dino.duck=false;
+      setStatus("Run ended");
+      shakeTime=14;
+      spawnBurst(dino.x+dino.w/2,dino.y+dino.h/2);
+      break;
+    }
+  }
+
+  score+=dt*.012;
+  if(Math.floor(score)>high){high=Math.floor(score);localStorage.dinoHighV2=high;}
+  if(Math.floor(score)>0 && Math.floor(score)%500===0 && Math.floor(score)!==milestoneShown){
+    milestoneShown=Math.floor(score);
+  }
+  updateUI();
+}
+
+function drawSky(sky,t){
+  const g=ctx.createLinearGradient(0,0,0,ground+6);
+  g.addColorStop(0,rgb(sky.top)); g.addColorStop(0.55,rgb(sky.mid)); g.addColorStop(1,rgb(sky.hor));
+  ctx.fillStyle=g; ctx.fillRect(0,0,W,ground+6);
+
+  if(sky.stars>0.02){
+    ctx.save();
+    for(const s of stars){
+      const alpha=sky.stars*(0.5+0.5*Math.sin((t*400)+s.tw));
+      ctx.globalAlpha=Math.max(0,alpha);
+      ctx.fillStyle="#fff";
+      ctx.beginPath();ctx.arc(s.x*W,s.y*(ground-10),s.r,0,Math.PI*2);ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  // celestial body on an arc
+  const localT=(t*4)%1;
+  const bx=localT*(W+140)-70, by=(ground-40)-Math.sin(Math.PI*localT)*150;
+  const glowIsSun=sky.stars<0.5;
+  ctx.save();
+  const glow=ctx.createRadialGradient(bx,by,0,bx,by,60);
+  glow.addColorStop(0, `rgba(${sky.sun[0]},${sky.sun[1]},${sky.sun[2]},${glowIsSun?0.5:0.28})`);
+  glow.addColorStop(1, "rgba(0,0,0,0)");
+  ctx.fillStyle=glow; ctx.beginPath(); ctx.arc(bx,by,60,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle=rgb(sky.sun);
+  ctx.beginPath(); ctx.arc(bx,by,glowIsSun?22:17,0,Math.PI*2); ctx.fill();
+  ctx.restore();
+
+  // clouds
+  ctx.save();
+  ctx.globalAlpha=0.5+0.3*(1-sky.stars);
+  ctx.fillStyle=`rgba(255,255,255,${0.55*(1-sky.stars*0.7)})`;
+  for(let i=0;i<3;i++){
+    const x=((i*380+score*.12)%1180)-140;
+    ctx.beginPath();ctx.arc(x,66,16,0,Math.PI*2);
+    ctx.arc(x+20,62,22,0,Math.PI*2);
+    ctx.arc(x+44,68,15,0,Math.PI*2);ctx.fill();
+  }
+  ctx.restore();
+}
+
+function duneLayer(offset,amp,baseY,speedMul,color){
+  ctx.beginPath();
+  ctx.moveTo(0,H);
+  for(let x=0;x<=W;x+=20){
+    const wob=Math.sin((x*0.008)+(score*speedMul*0.01))*amp + Math.sin((x*0.021)+offset)*amp*0.4;
+    ctx.lineTo(x,baseY+wob);
+  }
+  ctx.lineTo(W,H); ctx.closePath();
+  ctx.fillStyle=color; ctx.fill();
+}
+
+// ---------- obstacle rendering ----------
+function drawObstacle(o,mix,dark){
+  const c=(base,amt)=>rgb(mix(base,amt));
+  switch(o.type){
+    case "cactus":{
+      ctx.fillStyle=c([79,121,66],14);
+      ctx.fillRect(o.x,o.y,o.w,o.h);
+      if(o.arm){
+        ctx.fillRect(o.x-8,o.y+o.h*0.32,8,7);
+        ctx.fillRect(o.x+o.w,o.y+o.h*0.5,8,7);
+      }
+      break;
+    }
+    case "bird":{
+      ctx.fillStyle=c([120,70,66],10);
+      ctx.fillRect(o.x+8,o.y+8,28,13);
+      ctx.fillRect(o.x+30,o.y+4,10,10);
+      ctx.fillRect(o.x+39,o.y+8,7,4);
+      const flap=Math.sin(o.phase)>0;
+      ctx.fillRect(o.x+13,flap?o.y:o.y+13,16,6);
+      ctx.fillRect(o.x+13,flap?o.y+18:o.y+23,4,7);
+      break;
+    }
+    case "bat":{
+      ctx.fillStyle=c([44,30,58],4);
+      ctx.beginPath(); ctx.arc(o.x+19,o.y+11,7,0,Math.PI*2); ctx.fill();
+      const flap=Math.sin(o.phase);
+      ctx.beginPath();
+      ctx.moveTo(o.x+16,o.y+9); ctx.lineTo(o.x+16-14*Math.abs(flap),o.y+2-flap*8); ctx.lineTo(o.x+10,o.y+13);
+      ctx.closePath(); ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(o.x+24,o.y+9); ctx.lineTo(o.x+24+14*Math.abs(flap),o.y+2-flap*8); ctx.lineTo(o.x+30,o.y+13);
+      ctx.closePath(); ctx.fill();
+      ctx.fillStyle="#e35b5b"; ctx.fillRect(o.x+16,o.y+8,2,2); ctx.fillRect(o.x+21,o.y+8,2,2);
+      break;
+    }
+    case "vulture":{
+      ctx.fillStyle=c([70,60,54],4);
+      ctx.beginPath(); ctx.ellipse(o.x+o.w/2,o.y+18,10,7,0,0,Math.PI*2); ctx.fill();
+      ctx.fillRect(o.x+o.w/2+7,o.y+13,10,5);
+      const flap=Math.sin(o.phase)*10;
+      ctx.beginPath();
+      ctx.moveTo(o.x+o.w/2-6,o.y+16); ctx.lineTo(o.x,o.y+16-flap); ctx.lineTo(o.x+o.w/2-2,o.y+20);
+      ctx.closePath(); ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(o.x+o.w/2+6,o.y+16); ctx.lineTo(o.x+o.w,o.y+16-flap); ctx.lineTo(o.x+o.w/2+2,o.y+20);
+      ctx.closePath(); ctx.fill();
+      break;
+    }
+    case "owl":{
+      ctx.fillStyle=c([210,200,190],46);
+      ctx.beginPath(); ctx.ellipse(o.x+o.w/2,o.y+16,12,10,0,0,Math.PI*2); ctx.fill();
+      ctx.fillRect(o.x+o.w/2-8,o.y+3,4,6); ctx.fillRect(o.x+o.w/2+4,o.y+3,4,6);
+      const flap=Math.sin(o.phase)*9;
+      ctx.beginPath();
+      ctx.moveTo(o.x+o.w/2-8,o.y+14); ctx.lineTo(o.x,o.y+12-flap); ctx.lineTo(o.x+o.w/2-4,o.y+22);
+      ctx.closePath(); ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(o.x+o.w/2+8,o.y+14); ctx.lineTo(o.x+o.w,o.y+12-flap); ctx.lineTo(o.x+o.w/2+4,o.y+22);
+      ctx.closePath(); ctx.fill();
+      ctx.fillStyle=dark>0.4?"#ffe58a":"#3a2f1a";
+      ctx.beginPath(); ctx.arc(o.x+o.w/2-4,o.y+15,2,0,Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(o.x+o.w/2+4,o.y+15,2,0,Math.PI*2); ctx.fill();
+      break;
+    }
+    case "snake":{
+      ctx.strokeStyle=c([90,110,60],10); ctx.lineWidth=7; ctx.lineCap="round";
+      ctx.beginPath();
+      for(let i=0;i<=o.w;i+=4){
+        const yy=o.y+o.h/2+Math.sin(i*0.35+o.phase*4)*4;
+        if(i===0) ctx.moveTo(o.x+i,yy); else ctx.lineTo(o.x+i,yy);
+      }
+      ctx.stroke();
+      ctx.fillStyle=c([90,110,60],10);
+      ctx.beginPath(); ctx.arc(o.x+o.w-2,o.y+o.h/2+Math.sin(o.w*0.35+o.phase*4)*4,5,0,Math.PI*2); ctx.fill();
+      ctx.fillStyle="#e35b5b"; ctx.fillRect(o.x+o.w+2,o.y+o.h/2-1,4,2);
+      break;
+    }
+    case "scorpion":{
+      ctx.fillStyle=c([120,58,46],8);
+      ctx.beginPath(); ctx.ellipse(o.x+14,o.y+13,10,6,0,0,Math.PI*2); ctx.fill();
+      ctx.fillRect(o.x+2,o.y+6,4,6); ctx.fillRect(o.x+22,o.y+6,4,6);
+      ctx.strokeStyle=c([120,58,46],8); ctx.lineWidth=3; ctx.lineCap="round";
+      ctx.beginPath(); ctx.moveTo(o.x+22,o.y+10); ctx.lineTo(o.x+28,o.y+2); ctx.lineTo(o.x+27,o.y-4); ctx.stroke();
+      break;
+    }
+  }
+}
+
+// ---------- stickman ----------
+function limb(x1,y1,x2,y2,x3,y3,color,w){
+  ctx.strokeStyle=color; ctx.lineWidth=w; ctx.lineCap="round"; ctx.lineJoin="round";
+  ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.lineTo(x3,y3); ctx.stroke();
+}
+function drawStickman(dino,color,skinColor){
+  const x=dino.x, w=dino.w;
+  const cx=x+w/2;
+  if(dino.jumping){
+    // tucked mid-air pose
+    const topY=dino.y;
+    const headY=topY+7, hipY=topY+26, footY=topY+dino.h;
+    ctx.fillStyle=skinColor; ctx.beginPath(); ctx.arc(cx,headY,6.5,0,Math.PI*2); ctx.fill();
+    limb(cx,headY+6,cx,hipY,cx,hipY,color,3.2);
+    // bent legs tucked forward
+    limb(cx,hipY,cx+8,hipY+8,cx+4,footY-6,color,3);
+    limb(cx,hipY,cx-6,hipY+6,cx-9,footY-10,color,3);
+    // arms swept back for momentum
+    limb(cx,headY+9,cx+10,headY+4,cx+15,headY,color,2.6);
+    limb(cx,headY+9,cx-9,headY+10,cx-13,headY+16,color,2.6);
+  }else if(dino.duck){
+    // low crouched scuttle
+    const baseY=dino.y+dino.h;
+    const hipX=x+8, hipY=dino.y+16, headX=x+w-8, headY=dino.y+6;
+    ctx.fillStyle=skinColor; ctx.beginPath(); ctx.arc(headX,headY,6,0,Math.PI*2); ctx.fill();
+    limb(headX-3,headY+3,hipX+6,hipY,hipX,hipY,color,3.2);
+    const s=Math.sin(dino.legPhase*1.6);
+    limb(hipX,hipY,hipX-4+s*3,baseY-6,hipX-6+s*5,baseY,color,2.8);
+    limb(hipX,hipY,hipX+10-s*3,baseY-6,hipX+13-s*5,baseY,color,2.8);
+    limb(headX,headY+2,headX+7,headY+8,headX+11,headY+5,color,2.4);
+  }else{
+    // running cycle
+    const headY=dino.y+7, hipY=dino.y+29, footY=dino.y+dino.h;
+    const bob=Math.sin(dino.legPhase)*1.4;
+    ctx.fillStyle=skinColor; ctx.beginPath(); ctx.arc(cx,headY+bob,6.5,0,Math.PI*2); ctx.fill();
+    limb(cx,headY+6+bob,cx,hipY+bob*0.5,cx,hipY+bob*0.5,color,3.2);
+    for(const ph of [dino.legPhase, dino.legPhase+Math.PI]){
+      const amt=Math.sin(ph);
+      if(amt>=0){
+        limb(cx,hipY+bob*0.5,cx+amt*9,hipY+ (footY-hipY)*0.5+bob*0.5,cx+amt*10,footY,color,3);
+      }else{
+        const lift=-amt;
+        limb(cx,hipY+bob*0.5,cx-lift*5,hipY+(footY-hipY)*0.42+bob*0.5,cx-lift*11,footY-lift*15,color,3);
+      }
+    }
+    for(const ph of [dino.legPhase+Math.PI, dino.legPhase]){
+      const amt=Math.sin(ph);
+      limb(cx,headY+9+bob,cx+amt*5,headY+16+bob,cx+amt*9,headY+21+bob,color,2.4);
+    }
+  }
+}
+
+function draw(){
+  ctx.save();
+  if(shakeTime>0){
+    ctx.translate((Math.random()-0.5)*shakeTime*0.9,(Math.random()-0.5)*shakeTime*0.9);
+  }
+  const t=((score%CYCLE)/CYCLE+1)%1;
+  const sky=skyAt(t);
+  drawSky(sky,t);
+
+  const dark=sky.stars; // darken dunes/ground toward night
+  const mix=(base,amt)=>base.map((v)=>Math.max(0,v-amt*dark));
+  duneLayer(0, 10, ground-46, 0.6, `rgb(${mix([120,84,86],40).join(",")})`);
+  duneLayer(3.4, 16, ground-24, 1.1, `rgb(${mix([150,104,96],40).join(",")})`);
+
+  // ground
+  ctx.fillStyle=rgb(mix([214,178,138],46));
+  ctx.fillRect(0,ground,W,H-ground);
+  ctx.strokeStyle=rgb(mix([120,86,60],30)); ctx.lineWidth=2;
+  ctx.beginPath();ctx.moveTo(0,ground);ctx.lineTo(W,ground);ctx.stroke();
+  ctx.fillStyle=rgb(mix([170,138,102],40));
+  for(let i=0;i<26;i++){
+    const x=((i*47 - score*1.4)%(W+40)+ (W+40))%(W+40) - 20;
+    ctx.fillRect(x,ground+14+((i*13)%18),10,3);
+  }
+
+  // stickman runner
+  drawStickman(dino, rgb(mix([245,238,224],4)), rgb(mix([232,163,61],0)));
+
+  // obstacles
+  for(const o of obstacles){
+    drawObstacle(o,mix,dark);
+    if(debug){
+      ctx.strokeStyle=o.solve==="duck"?"#7dd3c0":"#f4c065";
+      ctx.lineWidth=1.5; ctx.strokeRect(o.x-4,o.y-4,o.w+8,o.h+8);
+      ctx.fillStyle=o.solve==="duck"?"#7dd3c0":"#f4c065"; ctx.font="600 10.5px Inter";
+      ctx.fillText(o.solve.toUpperCase(),o.x-4,o.y-9);
+    }
+  }
+
+  // particles
+  for(const p of particles){
+    ctx.globalAlpha=Math.max(0,p.life/p.maxLife);
+    ctx.fillStyle=`rgb(${p.color})`;
+    ctx.fillRect(p.x,p.y,p.size,p.size);
+  }
+  ctx.globalAlpha=1;
+
+  if(debug){
+    ctx.strokeStyle="#7dd3c0";ctx.lineWidth=1.5;
+    ctx.strokeRect(dino.x+7,dino.y+5,dino.w-13,dino.h-8);
+    const danger=obstacles.filter(o=>o.x>dino.x).sort((a,b)=>a.x-b.x)[0];
+    if(danger){
+      ctx.strokeStyle="#8ff0b0";ctx.beginPath();
+      ctx.moveTo(dino.x+dino.w,dino.y+20);
+      ctx.lineTo(danger.x,danger.y+danger.h/2);ctx.stroke();
+    }
+  }
+
+  ctx.textAlign="center";
+  if(!running&&!gameOver){
+    ctx.fillStyle="rgba(28,23,48,.72)";ctx.fillRect(0,0,W,ground+6);
+    ctx.fillStyle="#faf4e6";ctx.font="600 26px Fraunces";
+    ctx.fillText("Press Start run",W/2,ground/2-6);
+    ctx.font="500 13px Inter"; ctx.fillStyle="#cabfe0";
+    ctx.fillText("or hit Enter",W/2,ground/2+20);
+  }
+  if(gameOver){
+    ctx.fillStyle="rgba(28,23,48,.76)";ctx.fillRect(0,0,W,ground+6);
+    ctx.fillStyle="#faf4e6";ctx.font="600 30px Fraunces";
+    ctx.fillText("Run ended",W/2,ground/2-4);
+    ctx.font="500 14px Inter"; ctx.fillStyle="#cabfe0";
+    ctx.fillText("Reset, then start again",W/2,ground/2+22);
+  }
+  ctx.restore();
+}
+
+function updateUI(){
+  document.getElementById("score").textContent=String(Math.floor(score)).padStart(5,"0");
+  document.getElementById("high").textContent=String(high).padStart(5,"0");
+  const curSpeed=(baseSpeed+Math.min(score/450,6));
+  document.getElementById("speed").textContent=curSpeed.toFixed(1);
+
+  const autoOn=document.getElementById("auto").checked;
+  const dot=document.getElementById("solverDot"), txt=document.getElementById("solverText");
+  dot.className="solver-dot";
+  if(!autoOn){dot.classList.add("off");txt.textContent="Off";}
+  else if(!running||gameOver){dot.classList.add("watch");txt.textContent="Standing by";}
+  else if(actionState==="jump"){dot.classList.add("jump");txt.textContent="Jumping";}
+  else if(actionState==="duck"){dot.classList.add("duck");txt.textContent="Ducking";}
+  else{dot.classList.add("watch");txt.textContent="Watching";}
+}
+
+document.getElementById("start").onclick=start;
+document.getElementById("reset").onclick=()=>{reset();setStatus("Ready");};
+document.getElementById("jump").onclick=jump;
+document.getElementById("duck").onmousedown=()=>setDuck(true);
+document.getElementById("duck").onmouseup=()=>setDuck(false);
+document.getElementById("duck").onmouseleave=()=>setDuck(false);
+document.getElementById("auto").onchange=updateUI;
+document.getElementById("debug").onchange=e=>debug=e.target.checked;
+document.getElementById("speedRange").oninput=e=>{
+  baseSpeed=Number(e.target.value);
+  document.getElementById("speedVal").textContent=baseSpeed.toFixed(1);
+  updateUI();
+};
+
+document.addEventListener("keydown",e=>{
+  if(e.code==="Space"||e.code==="ArrowUp"){e.preventDefault();jump();}
+  if(e.code==="ArrowDown"){e.preventDefault();setDuck(true);}
+  if(e.code==="Enter")start();
+});
+document.addEventListener("keyup",e=>{ if(e.code==="ArrowDown")setDuck(false); });
+
+function loop(t){
+  const dt=Math.min(32,t-(last||t-16));last=t;
+  update(dt);draw();requestAnimationFrame(loop);
+}
+reset();requestAnimationFrame(loop);
+</script>
+</body>
+</html>
